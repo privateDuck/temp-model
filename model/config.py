@@ -4,26 +4,19 @@ ROOT = Path(__file__).resolve().parent
 FEATURES_DIR = "../data/processed/features"
 MODEL_DIR = ROOT / "model"
 
-# ---------------------------------------------------------------------------
-# Task
-# ---------------------------------------------------------------------------
 TARGET = "target_temperature_2m_t6h"
 
 # first 24 months -> train, next 6 months -> dev (early stopping),
-# remainder (~6 months, most recent) -> validation holdout.
+# remainder (~6 months, most recent) -> validation holdout
 TRAIN_MONTHS = 24
 TEST_MONTHS = 6
 
 SEED = 42
-RIDGE_ALPHA = 1.0  # fixed, no tuning
+RIDGE_ALPHA = 1.0
 
-# ---------------------------------------------------------------------------
 # Features
-# ---------------------------------------------------------------------------
 CITIES = ["colombo", "galle", "berlin", "tokyo"]
 
-# Same list the ETL produces (features.FEATURE_COLUMNS). Filtered to the
-# columns actually present in the Parquet at load time.
 FEATURE_COLUMNS = [
     *[f"{var}_lag_{h}h"
       for var in ("temperature_2m", "surface_pressure", "shortwave_radiation")
@@ -45,16 +38,14 @@ EXCLUDED_FROM_MODEL = ["hour_of_day", "day_of_year"]  # info lives in sin/cos
 EXTRA_STATIC = ["latitude", "longitude"]              # added to the model
 
 # Raw hourly channels the LSTM reads as an ordered 48h sequence
-# (hour_sin/cos already in [-1, 1], passed through unscaled).
+# (hour_sin/cos already in [-1, 1], passed through unscaled)
 LSTM_SEQ_FEATURES = [
     "temperature_2m", "relative_humidity_2m", "surface_pressure",
     "cloud_cover", "wind_speed_10m", "shortwave_radiation",
     "hour_sin", "hour_cos",
 ]
 
-# ---------------------------------------------------------------------------
-# Model hyperparameters (fixed; no tuning)
-# ---------------------------------------------------------------------------
+# Model hyperparameters
 FFNN_PARAMS = {
     "hidden": (256, 128, 64),
     "dropout": (0.20, 0.15, 0.10),
@@ -62,11 +53,11 @@ FFNN_PARAMS = {
     "lr": 1e-3,
     "weight_decay": 1e-4,
     "epochs": 200,
-    "patience": 15,          # early stopping on dev MAE
+    "patience": 15,
 }
 
 LSTM_PARAMS = {
-    "seq_len": 48,           # two diurnal cycles
+    "seq_len": 48,
     "hidden": 64,
     "layers": 2,
     "dropout": 0.2,
