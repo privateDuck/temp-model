@@ -1,3 +1,4 @@
 /diff_model/
 /data/
 /.venv/
+*pycache*
