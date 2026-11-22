@@ -1,0 +1,13 @@
+mlflow>=2.14,<3
+numpy
+pandas
+pyarrow
+scikit-learn
+joblib
+fastapi
+uvicorn[standard]
+requests
+openmeteo-requests
+requests-cache
+retry-requests
+streamlit>=1.36 

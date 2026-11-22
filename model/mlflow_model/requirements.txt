@@ -1,0 +1,7 @@
+mlflow==3.18.0
+numpy
+pandas
+torch
+scikit-learn
+joblib
+cloudpickle

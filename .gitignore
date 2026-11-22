@@ -1,6 +1,9 @@
 /diff_model/
 /data/
 /.venv/
-__pycache__/
+*__pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.env
+/mlflow_model/
