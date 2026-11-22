@@ -15,8 +15,4 @@ done
 # keep the API visible in the container logs
 tail --pid=$API_PID -f /dev/null &
 
-exec streamlit run dashboard.py \
-  --server.address 0.0.0.0 \
-  --server.port "${PORT:-8080}" \
-  --server.headless true \
-  --browser.gatherUsageStats false 
+exec streamlit run dashboard.py --server.address 0.0.0.0 --server.port "${PORT:-8080}" --server.headless true --browser.gatherUsageStats false

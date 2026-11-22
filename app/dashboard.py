@@ -12,8 +12,7 @@ CITY_COORDS = {
 }
 
 st.set_page_config(page_title="6h Temperature Forecast", layout="centered")
-st.title("6-Hour Temperature Forecast")
-st.caption(f"Backend: {API_URL} (FastAPI + MLflow model)")
+st.title("6 Hour Temperature Forecast")
 
 choice = st.selectbox("Location", list(CITY_COORDS) + ["Custom coordinates"])
 if choice == "Custom coordinates":
@@ -64,7 +63,6 @@ if st.button("Predict temperature at t+6h", type="primary"):
 
 st.divider()
 st.caption(
-    "Model: FFNN (256-128-64) served as an MLflow pyfunc, loaded from the "
-    "MLflow tracking server at startup. Forecasts are most reliable for the "
-    "four training cities."
+    "Model: FFNN (256-128-64)"
+    "Forecasts are most reliable for the four training cities."
 ) 

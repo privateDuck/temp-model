@@ -7,3 +7,4 @@
 *.pyc
 *.env
 /mlflow_model/
+/app/app_modal.py

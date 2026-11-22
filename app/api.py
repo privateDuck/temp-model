@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from inference import CITY_COORDS, engineer_features, fetch_recent_open_meteo
 
-DEFAULT_MODEL_URI = "models:/weather-6h-temp/latest"
+DEFAULT_MODEL_URI = "models:/openmeteo-forecast/latest"
 MODEL: dict = {"pyfunc": None, "uri": None}
 
 
