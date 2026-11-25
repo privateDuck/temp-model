@@ -32,6 +32,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/live_predictions.csv
+          git add live/live_predictions.csv
           git commit -m "chore(monitoring): log hourly Modal forecast & actuals" || exit 0
           git push
