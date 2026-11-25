@@ -1,27 +1,30 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
 import requests
 
-MODAL_ENDPOINT = os.environ["MODAL_ENDPOINT_URL"]
-LOG_PATH = Path("live/live_predictions.csv")
+MODAL_ENDPOINT = os.environ["MODAL_ENDPOINT_URL"]  # .../predict
+LOG_PATH = Path("data/live_predictions.csv")
 
 CITY_COORDS = {
-    "Colombo": (6.9271, 79.8612),
-    "London": (51.5074, -0.1278),
-    "Tokyo": (35.6762, 139.6503),
-    "New_York": (40.7128, -74.0060),
+    "colombo": (6.9271, 79.8612),
+    "galle": (6.0338, 80.2164),
+    "berlin": (52.5200, 13.4050),
+    "tokyo": (35.6895, 139.6917),
 }
 
 COLUMNS = [
     "logged_at_utc",
     "city",
-    "target_timestamp_utc",
-    "predicted_temp_c",
-    "actual_temp_c",
+    "observed_at_utc",
+    "forecast_time_utc",
+    "temperature_now_c",
+    "predicted_temperature_c",
+    "actual_temperature_c",
     "abs_error_c",
-    "api_latency_ms",
+    "inference_ms",
+    "total_ms",
 ]
 
 
@@ -33,11 +36,10 @@ def load_log() -> pd.DataFrame:
 
 
 def fetch_actuals(lat: float, lon: float) -> dict[str, float]:
-    """Fetch the last 24 hours of observed hourly temperatures from Open-Meteo."""
     url = (
         f"https://api.open-meteo.com/v1/forecast?"
         f"latitude={lat}&longitude={lon}&hourly=temperature_2m"
-        f"&past_days=1&forecast_days=1&timezone=UTC"
+        f"&past_days=2&forecast_days=1&timezone=UTC"
     )
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
@@ -50,12 +52,10 @@ def fetch_actuals(lat: float, lon: float) -> dict[str, float]:
 
 
 def backfill_actuals(df: pd.DataFrame) -> pd.DataFrame:
-    """Fill in actual temperatures and absolute error for predictions whose target hour has passed."""
-    if df.empty or not df["actual_temp_c"].isna().any():
+    if df.empty or not df["actual_temperature_c"].isna().any():
         return df
 
-    now_hour = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    pending_cities = df.loc[df["actual_temp_c"].isna(), "city"].unique()
+    pending_cities = df.loc[df["actual_temperature_c"].isna(), "city"].unique()
 
     for city in pending_cities:
         if city not in CITY_COORDS:
@@ -63,47 +63,46 @@ def backfill_actuals(df: pd.DataFrame) -> pd.DataFrame:
         lat, lon = CITY_COORDS[city]
         actual_map = fetch_actuals(lat, lon)
 
-        mask = (df["city"] == city) & (df["actual_temp_c"].isna())
+        mask = (df["city"] == city) & (df["actual_temperature_c"].isna())
         for idx in df[mask].index:
-            target_str = df.at[idx, "target_timestamp_utc"]  # format: YYYY-MM-DDTHH:00
-            target_dt = datetime.strptime(target_str, "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc)
-            if target_dt <= now_hour and target_str in actual_map:
-                actual = float(actual_map[target_str])
-                pred = float(df.at[idx, "predicted_temp_c"])
-                df.at[idx, "actual_temp_c"] = round(actual, 2)
+            # Normalize timestamp format to Open-Meteo's "YYYY-MM-DDTHH:00"
+            target_dt = pd.to_datetime(df.at[idx, "forecast_time_utc"], utc=True)
+            target_key = target_dt.strftime("%Y-%m-%dT%H:00")
+
+            if target_key in actual_map:
+                actual = float(actual_map[target_key])
+                pred = float(df.at[idx, "predicted_temperature_c"])
+                df.at[idx, "actual_temperature_c"] = round(actual, 2)
                 df.at[idx, "abs_error_c"] = round(abs(pred - actual), 3)
 
     return df
 
 
 def log_new_predictions(df: pd.DataFrame) -> pd.DataFrame:
-    """Call the live Modal endpoint for each city and append the new t+6h forecast."""
-    now_utc = datetime.now(timezone.utc)
-    current_hour = now_utc.replace(minute=0, second=0, microsecond=0)
-    target_hour = (current_hour + timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M")
-
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     new_rows = []
+
     for city, (lat, lon) in CITY_COORDS.items():
         resp = requests.post(
             MODAL_ENDPOINT,
-            json={"latitude": lat, "longitude": lon, "city": city},
-            timeout=30,
+            json={"latitude": float(lat), "longitude": float(lon)},
+            timeout=120,  # Allows cold-start container spin-up
         )
         resp.raise_for_status()
-        payload = resp.json()
-
-        pred_temp = payload.get("predicted_temperature_c")
-        latency = payload.get("inference_ms", None)
+        data = resp.json()
 
         new_rows.append(
             {
-                "logged_at_utc": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "logged_at_utc": now_utc,
                 "city": city,
-                "target_timestamp_utc": target_hour,
-                "predicted_temp_c": round(float(pred_temp), 2),
-                "actual_temp_c": None,
+                "observed_at_utc": data["observed_at"],
+                "forecast_time_utc": data["forecast_time"],
+                "temperature_now_c": round(float(data["temperature_now_c"]), 2),
+                "predicted_temperature_c": round(float(data["predicted_temperature_c"]), 2),
+                "actual_temperature_c": None,
                 "abs_error_c": None,
-                "api_latency_ms": latency,
+                "inference_ms": round(float(data["inference_ms"]), 2),
+                "total_ms": round(float(data["total_ms"]), 2),
             }
         )
 
@@ -117,9 +116,9 @@ def main():
     df.to_csv(LOG_PATH, index=False)
 
     scored = df.dropna(subset=["abs_error_c"])
-    print(f"Total logged predictions: {len(df)} | Reconciled with ground truth: {len(scored)}")
+    print(f"Total logged: {len(df)} | Reconciled with ground truth: {len(scored)}")
     if not scored.empty:
-        print(f"Live Running MAE: {scored['abs_error_c'].mean():.3f} °C")
+        print(f"Live Production MAE: {scored['abs_error_c'].mean():.3f} °C")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import os
 
 import requests
 import streamlit as st
+import pandas as pd
 
 API_URL = os.environ.get("API_URL", "http://localhost:8000")
 CITY_COORDS = {
@@ -62,7 +63,71 @@ if st.button("Predict temperature at t+6h", type="primary"):
         st.json(data)
 
 st.divider()
-st.caption(
-    "Model: FFNN (256-128-64)"
-    "Forecasts are most reliable for the four training cities."
-) 
+st.subheader("Live Production Monitoring (Automated Evaluation)")
+
+LIVE_LOG_URL = os.environ.get(
+    "LIVE_LOG_URL",
+    "https://raw.githubusercontent.com/privateDuck/temp-model/main/live/live_predictions.csv",
+)
+
+
+@st.cache_data(ttl=300)
+def load_live_metrics(url: str) -> pd.DataFrame | None:
+    try:
+        df = pd.read_csv(url)
+        return df if not df.empty else None
+    except Exception:
+        return None
+
+
+live_df = load_live_metrics(LIVE_LOG_URL)
+
+if live_df is None:
+    st.info("No live evaluation logs found yet. Waiting for the first GitHub Actions run.")
+else:
+    scored = live_df.dropna(subset=["actual_temperature_c", "abs_error_c"]).copy()
+    pending_count = len(live_df) - len(scored)
+
+    if scored.empty:
+        st.info(
+            f"{pending_count} forecast(s) logged and awaiting ground-truth reconciliation "
+            "(actuals backfill once the t+6h target timestamp passes)."
+        )
+    else:
+        scored["forecast_time_utc"] = pd.to_datetime(scored["forecast_time_utc"])
+        scored = scored.sort_values("forecast_time_utc")
+
+        # Filter by city
+        cities = sorted(scored["city"].unique())
+        selected_city = st.selectbox("Monitoring city", cities, index=0)
+        city_df = scored[scored["city"] == selected_city].copy()
+
+        # Rolling MAE
+        window = min(12, len(city_df))
+        city_df["rolling_mae_c"] = city_df["abs_error_c"].rolling(window=window, min_periods=1).mean()
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Reconciled Forecasts", f"{len(city_df)} ({pending_count} pending)")
+        m2.metric("Overall Live MAE", f"{city_df['abs_error_c'].mean():.2f} °C")
+        m3.metric(f"Rolling MAE (last {window})", f"{city_df['rolling_mae_c'].iloc[-1]:.2f} °C")
+
+        st.caption("Predicted vs. Actual Temperature (°C)")
+        temp_chart_df = city_df.set_index("forecast_time_utc")[
+            ["predicted_temperature_c", "actual_temperature_c"]
+        ].rename(
+            columns={
+                "predicted_temperature_c": "Predicted (t+6h)",
+                "actual_temperature_c": "Actual",
+            }
+        )
+        st.line_chart(temp_chart_df)
+
+        st.caption("Rolling Mean Absolute Error (°C)")
+        mae_chart_df = city_df.set_index("forecast_time_utc")[["rolling_mae_c"]].rename(
+            columns={"rolling_mae_c": "Rolling MAE (°C)"}
+        )
+        st.line_chart(mae_chart_df)
+
+
+st.divider()
+st.caption("Model: FFNN (256-128-64) | Forecasts are most reliable for the four training cities.") 
