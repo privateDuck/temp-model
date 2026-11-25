@@ -67,7 +67,7 @@ st.subheader("Live Production Monitoring (Automated Evaluation)")
 
 LIVE_LOG_URL = os.environ.get(
     "LIVE_LOG_URL",
-    "https://raw.githubusercontent.com/privateDuck/temp-model/main/live/live_predictions.csv",
+    "https://raw.githubusercontent.com/privateDuck/temp-model/master/live/live_predictions.csv",
 )
 
 
