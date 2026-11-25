@@ -1,0 +1,37 @@
+name: Live Inference and Running Metrics
+
+on:
+  schedule:
+    - cron: "5 */4 * * *" # Runs at minute 5 of every 4 hours
+  workflow_dispatch:
+
+jobs:
+  evaluate-and-log:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas
+
+      - name: Run live Modal inference & backfill actuals
+        env:
+          MODAL_ENDPOINT_URL: ${{ secrets.MODAL_ENDPOINT_URL }}
+        run: python log_live_eval.py
+
+      - name: Commit updated live metrics log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/live_predictions.csv
+          git commit -m "chore(monitoring): log hourly Modal forecast & actuals" || exit 0
+          git push
