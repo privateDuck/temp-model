@@ -92,9 +92,8 @@ def log_new_predictions(df: pd.DataFrame) -> pd.DataFrame:
         resp.raise_for_status()
         payload = resp.json()
 
-        # Adjust key names below to match your exact Modal endpoint JSON response
-        pred_temp = payload.get("forecast_6h_temp_c") or payload.get("prediction")
-        latency = payload.get("inference_latency_ms", None)
+        pred_temp = payload.get("predicted_temperature_c")
+        latency = payload.get("inference_ms", None)
 
         new_rows.append(
             {
@@ -120,7 +119,7 @@ def main():
     scored = df.dropna(subset=["abs_error_c"])
     print(f"Total logged predictions: {len(df)} | Reconciled with ground truth: {len(scored)}")
     if not scored.empty:
-        print(f"Live Production MAE: {scored['abs_error_c'].mean():.3f} °C")
+        print(f"Live Running MAE: {scored['abs_error_c'].mean():.3f} °C")
 
 
 if __name__ == "__main__":
