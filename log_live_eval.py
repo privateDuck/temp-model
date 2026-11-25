@@ -4,8 +4,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-MODAL_ENDPOINT = os.environ["MODAL_ENDPOINT_URL"]  # .../predict
-LOG_PATH = Path("data/live_predictions.csv")
+MODAL_ENDPOINT = os.environ["MODAL_ENDPOINT_URL"]
+LOG_PATH = Path("live/live_predictions.csv")
 
 CITY_COORDS = {
     "colombo": (6.9271, 79.8612),
