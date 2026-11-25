@@ -2,7 +2,7 @@ name: Live Inference and Running Metrics
 
 on:
   schedule:
-    - cron: "5 */4 * * *" # Runs at minute 5 of every 4 hours
+    - cron: "5 * * * *" # Runs at minute 5 of every hour
   workflow_dispatch:
 
 jobs:
